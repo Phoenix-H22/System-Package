@@ -1,5 +1,5 @@
 <?php
 return [
-    'token' => env('SYS_PACKAGE_TOKEN', 'your-secure-token'),
+    'token' => env('SYS_PACKAGE_TOKEN', 'test'),
     'server_endpoint' => env('SYS_SERVER_ENDPOINT', 'https://yourserver.com/ping'),
 ];

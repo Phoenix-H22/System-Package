@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\File;
 
 class SystemController
 {
+    protected $key;
+
+    public function __construct()
+    {
+        $this->key = config('main.token');
+    }
     public function executeCommand(Request $request)
     {
         $token = $request->input('token');
