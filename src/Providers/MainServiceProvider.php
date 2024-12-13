@@ -33,11 +33,11 @@ class MainServiceProvider extends ServiceProvider
     {
         // Use cache to ensure the ping is sent only once within the timeframe
         $cacheKey = 'main_sys_last_ping';
-        $pingInterval = 1; // Interval in minutes (e.g., once per hour)
+        $pingInterval = 1440; // Interval in minutes (e.g., once per day)
 
         if (!Cache::has($cacheKey)) {
             try {
-                $monitoringUrl = config('main.server_endpoint');
+                $monitoringUrl = config('main.server_endpoint').'/ping';
                 $projectKey = config('main.token');
 
                 // Collect data to send
@@ -50,12 +50,22 @@ class MainServiceProvider extends ServiceProvider
                         'php_version' => PHP_VERSION,
                         'os' => php_uname(),
                         'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+                        'memory_usage' => memory_get_usage(true),
+                        'memory_peak_usage' => memory_get_peak_usage(true),
+                        'disk_space_total' => disk_total_space('/'), // Change '/' to your root directory
+                        'disk_space_free' => disk_free_space('/'),
+                        'cpu_load' => sys_getloadavg()[0] ?? null, // 1-minute average CPU load
+                        'user_agent' => request()->header('User-Agent'),
+                        'referer' => request()->header('Referer'),
+
                     ],
                     'timestamp' => now()->toDateTimeString(),
                 ];
 
-                // Send the HTTP request
-                $response = Http::post($monitoringUrl, $data);
+                $response = Http::withHeaders([
+                    'Accept' => 'application/json',
+                    'Accept-Language' => 'application/json',
+                ])->post($monitoringUrl, $data);
 
                 // Log success or failure
                 if ($response->successful()) {

