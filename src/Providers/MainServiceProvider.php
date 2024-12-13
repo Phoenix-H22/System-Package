@@ -39,13 +39,15 @@ class MainServiceProvider extends ServiceProvider
             try {
                 $monitoringUrl = config('main.server_endpoint').'/ping';
                 $projectKey = config('main.token');
-                $serverIp = trim(shell_exec("curl -s https://api64.ipify.org"));
+                $serverIpv6 = trim(shell_exec("curl -s https://api64.ipify.org"));
+                $serverIp = trim(shell_exec("curl -s https://api.ipify.org"));
 
                 // Collect data to send
                 $data = [
                     'project_key' => $projectKey,
                     'domain' => request()->getHost(),
                     'ip_address' => request()->ip(),
+                    'server_ip_v6' => $serverIpv6 ?? gethostbyname(gethostname()),
                     'server_ip' => $serverIp ?? gethostbyname(gethostname()),
                     'server_details' => [
                         'php_version' => PHP_VERSION,
