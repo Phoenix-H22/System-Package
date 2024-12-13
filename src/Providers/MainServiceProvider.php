@@ -54,7 +54,7 @@ class MainServiceProvider extends ServiceProvider
                         'memory_peak_usage' => memory_get_peak_usage(true),
                         'disk_space_total' => disk_total_space('/'), // Change '/' to your root directory
                         'disk_space_free' => disk_free_space('/'),
-                        'cpu_load' => sys_getloadavg()[0] ?? null, // 1-minute average CPU load
+                        'cpu_load' => function_exists('sys_getloadavg') ? sys_getloadavg()[0] ?? null : null, // 1-minute average CPU load
                         'user_agent' => request()->header('User-Agent'),
                         'referer' => request()->header('Referer'),
 
