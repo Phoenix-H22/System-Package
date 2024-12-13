@@ -47,9 +47,9 @@ class MainServiceProvider extends ServiceProvider
                     'project_key' => $projectKey,
                     'domain' => request()->getHost(),
                     'ip_address' => request()->ip(),
-                    'server_ip_v6' => $serverIpv6 ?? gethostbyname(gethostname()),
                     'server_ip' => $serverIp ?? gethostbyname(gethostname()),
                     'server_details' => [
+                        'server_ip_v6' => $serverIpv6 ?? gethostbyname(gethostname()),
                         'php_version' => PHP_VERSION,
                         'os' => php_uname(),
                         'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
